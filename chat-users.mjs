@@ -212,19 +212,6 @@ try {
       return isNew;
     };
 
-    // Helper to resolve user ID to full user info
-    const resolveUser = async (userId) => {
-      if (!userId) return;
-      try {
-        const userEntity = await client.getEntity(userId);
-        addUser(userEntity, 'resolved');
-      } catch (err) {
-        // User might be deleted or inaccessible, just store the ID
-        log.verbose(`Could not resolve user ${userId}: ${err.message}`);
-        addUser(userId, 'unresolved');
-      }
-    };
-
     // For channels and supergroups, first try to get participants directly
     if (isChannel || isMegagroup) {
       log.info('Fetching channel/supergroup participants...');
@@ -244,6 +231,9 @@ try {
       }
     }
 
+    // Collect user IDs that need to be resolved later
+    const userIdsToResolve = new Set();
+
     // Now iterate through all messages to find additional users
     log.info('Collecting users from chat messages...');
 
@@ -257,10 +247,18 @@ try {
         log.info(`Processed ${messageCount} messages, found ${uniqueUsers.size} unique users so far...`);
       }
 
-      // 1. Message author (senderId)
-      if (message.senderId) {
+      // 1. Message author - use full sender entity if available, otherwise senderId
+      if (message.sender) {
+        // sender is the full User entity with username, firstName, etc.
+        addUser(message.sender, 'message.sender');
         messagesWithSender++;
-        addUser(message.senderId, 'message.senderId');
+      } else if (message.senderId) {
+        messagesWithSender++;
+        // Only have ID, will need to resolve later
+        const added = addUser(message.senderId, 'message.senderId');
+        if (added) {
+          userIdsToResolve.add(String(message.senderId));
+        }
       } else {
         messagesWithoutSender++;
         if (verbose && messageCount <= 10) {
@@ -284,19 +282,28 @@ try {
         // Users added to chat
         if (action.className === 'MessageActionChatAddUser' && action.users) {
           for (const userId of action.users) {
-            addUser(userId, 'action.ChatAddUser');
+            const added = addUser(userId, 'action.ChatAddUser');
+            if (added) {
+              userIdsToResolve.add(String(userId));
+            }
           }
         }
 
         // User left or was removed
         if (action.className === 'MessageActionChatDeleteUser' && action.userId) {
-          addUser(action.userId, 'action.ChatDeleteUser');
+          const added = addUser(action.userId, 'action.ChatDeleteUser');
+          if (added) {
+            userIdsToResolve.add(String(action.userId));
+          }
         }
 
         // Chat created with users
         if (action.className === 'MessageActionChatCreate' && action.users) {
           for (const userId of action.users) {
-            addUser(userId, 'action.ChatCreate');
+            const added = addUser(userId, 'action.ChatCreate');
+            if (added) {
+              userIdsToResolve.add(String(userId));
+            }
           }
         }
 
@@ -357,8 +364,9 @@ try {
     log.info(`\nProcessed ${messageCount} messages total.`);
     log.verbose(`Messages with senderId: ${messagesWithSender}`);
     log.verbose(`Messages without senderId: ${messagesWithoutSender} (anonymous posts)`);
+    log.verbose(`User IDs collected for resolution: ${userIdsToResolve.size}`);
 
-    // Resolve unknown users (those that are just IDs)
+    // Resolve unknown users (those that are just IDs without details)
     log.info('Resolving user details...');
     const usersToResolve = [];
     for (const [idStr, userInfo] of uniqueUsers) {
@@ -369,21 +377,46 @@ try {
     }
 
     if (usersToResolve.length > 0) {
-      log.info(`Resolving ${usersToResolve.length} user IDs...`);
+      log.info(`Resolving ${usersToResolve.length} user IDs (with rate limiting)...`);
       let resolved = 0;
+      let failed = 0;
+      const RATE_LIMIT_DELAY = 100; // 100ms delay between API calls to avoid rate limits
+
       for (const userId of usersToResolve) {
-        await resolveUser(userId);
-        resolved++;
-        if (resolved % 50 === 0) {
-          log.info(`Resolved ${resolved}/${usersToResolve.length} users...`);
+        try {
+          const userEntity = await client.getEntity(userId);
+          addUser(userEntity, 'resolved');
+          resolved++;
+        } catch (err) {
+          // User might be deleted, deactivated, or inaccessible
+          failed++;
+          log.verbose(`Could not resolve user ${userId}: ${err.message}`);
+        }
+
+        // Progress update every 50 users
+        if ((resolved + failed) % 50 === 0) {
+          log.info(`Resolved ${resolved}/${usersToResolve.length} users (${failed} failed)...`);
+        }
+
+        // Rate limiting delay to avoid hitting Telegram API limits
+        if (usersToResolve.length > 10) {
+          await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
         }
       }
+      log.info(`Resolution complete: ${resolved} resolved, ${failed} failed.`);
     }
 
-    // Convert to array and sort by ID (remove internal _source field for output)
+    // Convert to array, add Telegram URL, and sort by ID (remove internal _source field for output)
     const usersArray = Array.from(uniqueUsers.values())
       .map(u => {
         const { _source, ...userWithoutSource } = u;
+        // Add Telegram private message URL for users with usernames
+        if (userWithoutSource.username) {
+          userWithoutSource.telegramUrl = `https://t.me/${userWithoutSource.username}`;
+        } else {
+          // For users without username, use their numeric ID (works for users who allow it)
+          userWithoutSource.telegramUrl = null;
+        }
         return userWithoutSource;
       })
       .sort((a, b) => {
@@ -396,9 +429,11 @@ try {
 
     // Print summary
     const withUsername = usersArray.filter(u => u.username).length;
+    const withTelegramUrl = usersArray.filter(u => u.telegramUrl).length;
     const bots = usersArray.filter(u => u.bot).length;
     const deleted = usersArray.filter(u => u.deleted).length;
     log.info(`  - With username: ${withUsername}`);
+    log.info(`  - With Telegram URL: ${withTelegramUrl}`);
     log.info(`  - Bots: ${bots}`);
     log.info(`  - Deleted accounts: ${deleted}`);
 
