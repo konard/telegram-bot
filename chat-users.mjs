@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 // chat-users.mjs
 //
 // Usage:

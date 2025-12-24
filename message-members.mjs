@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { usingTelegram, use } from './utils.mjs';
 import fs from 'fs';
 import path from 'path';
