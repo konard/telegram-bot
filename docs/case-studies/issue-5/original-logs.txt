@@ -1,0 +1,54 @@
+Original Error Logs from Issue #5
+==================================
+
+Source: https://github.com/konard/telegram-bot/issues/5
+Date: 2025-12-24
+
+Command Run:
+------------
+./chat-users.mjs --help
+
+Full Output:
+------------
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+[2025-12-24T18:36:51.350] [INFO] - [Running gramJS version 2.26.21]
+[2025-12-24T18:36:51.351] [INFO] - [Connecting to 149.154.167.51:80/TCPFull...]
+[2025-12-24T18:36:51.513] [INFO] - [Connection to 149.154.167.51:80/TCPFull complete!]
+[2025-12-24T18:36:51.514] [INFO] - [Using LAYER 198 for initial connect]
+Connected.
+Connected.
+Found chat: Agiens_hackathon_vibecode
+Collecting unique users from chat messages...
+TimeoutNegativeWarning: -1766581619.921 is a negative number.
+Timeout duration was set to 1.
+      at new Promise (1:11)
+      at sleep (/Users/konard/.bun/install/global/node_modules/telegram-v-latest/Helpers.js:393:40)
+      at <anonymous> (/Users/konard/.bun/install/global/node_modules/telegram-v-latest/requestIter.js:50:45)
+
+
+Processed 483 messages total.
+Resolving user details...
+
+Found 0 unique users.
+  - With username: 0
+  - Bots: 0
+  - Deleted accounts: 0
+
+Users list saved to data/agiens_hackathon/users.json
+
+Sample users:
+[2025-12-24T18:37:02.806] [WARN] - [Disconnecting...]
+[2025-12-24T18:37:02.806] [INFO] - [Disconnecting from 149.154.167.51:80/TCPFull...]
+
+Output File Content:
+-------------------
+konard@MacBook-Pro-Konstantin telegram-bot % cat data/agiens_hackathon/users.json
+[]
+
+Analysis Notes:
+---------------
+1. --help flag was passed but script connected to Telegram anyway
+2. 483 messages were processed but 0 users found
+3. TimeoutNegativeWarning with value -1766581619.921 (approx 56 years negative)
+4. Output JSON file is empty array []
+5. Chat entity: Agiens_hackathon_vibecode (likely a channel based on underscore naming)
