@@ -14,6 +14,20 @@
 
 import fs from 'fs';
 
+// Suppress TimeoutNegativeWarning from gramJS library (upstream issue with negative sleep calculations)
+// This is a known issue in Node.js v24+ where negative setTimeout values now emit warnings
+// See: https://github.com/vercel/vercel/issues/14476
+const originalWarningListeners = process.listeners('warning');
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+  if (warning.name === 'TimeoutNegativeWarning') {
+    // Silently ignore - this is a gramJS library issue, functionally harmless
+    return;
+  }
+  // Re-emit other warnings to original listeners
+  originalWarningListeners.forEach(listener => listener(warning));
+});
+
 // Parse command-line arguments before any Telegram connection
 const args = process.argv.slice(2);
 const verbose = args.includes('--verbose') || args.includes('-v');
@@ -416,7 +430,10 @@ try {
     const outDir = `data/${chatUsername}`;
     const outPath = `${outDir}/users.json`;
     fs.mkdirSync(outDir, { recursive: true });
-    fs.writeFileSync(outPath, JSON.stringify(usersArray, null, 2));
+    // Use a replacer to handle BigInt serialization (Telegram IDs can exceed Number.MAX_SAFE_INTEGER)
+    const bigIntReplacer = (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value;
+    fs.writeFileSync(outPath, JSON.stringify(usersArray, bigIntReplacer, 2));
     log.info(`\nUsers list saved to ${outPath}`);
 
     // Also print first few users as sample
