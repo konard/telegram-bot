@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 // history-to-markdown.mjs
 //
 // Usage:
