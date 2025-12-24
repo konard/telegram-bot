@@ -1,0 +1,171 @@
+konard@MacBook-Pro-Konstantin telegram-bot % ./chat-users.mjs --verbose
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[2025-12-24T18:56:58.025] [INFO] - [Running gramJS version 2.26.21]
+[2025-12-24T18:56:58.026] [INFO] - [Connecting to 149.154.167.51:80/TCPFull...]
+[2025-12-24T18:56:58.235] [INFO] - [Connection to 149.154.167.51:80/TCPFull complete!]
+[2025-12-24T18:56:58.236] [INFO] - [Using LAYER 198 for initial connect]
+Connected.
+Connected.
+[VERBOSE] Found 1706 total dialogs
+Found chat: Agiens_hackathon_vibecode
+[VERBOSE] Entity type: Channel
+[VERBOSE] Is channel: true
+[VERBOSE] Is megagroup (supergroup): true
+[VERBOSE] Is regular group: false
+[VERBOSE] Entity ID: 2759711156
+[VERBOSE] Entity username: @agiens_hackathon
+Fetching channel/supergroup participants...
+[VERBOSE] Added user @Nospamjobot from participants
+[VERBOSE] Added user @pa_latoken_bot from participants
+[VERBOSE] Added user @Evolveordiejobot from participants
+[VERBOSE] Added user @maria_talent from participants
+[VERBOSE] Added user @vladdoriy from participants
+[VERBOSE] Added user @ValentinWM from participants
+Fetched 6 participants from channel/supergroup.
+Collecting users from chat messages...
+TimeoutNegativeWarning: -1766582828.182 is a negative number.
+Timeout duration was set to 1.
+      at new Promise (1:11)
+      at sleep (/Users/konard/.bun/install/global/node_modules/telegram-v-latest/Helpers.js:393:40)
+      at <anonymous> (/Users/konard/.bun/install/global/node_modules/telegram-v-latest/requestIter.js:50:45)
+
+[VERBOSE] Message 242 has action: MessageActionChatAddUser
+[VERBOSE] Message 248 has action: MessageActionChatAddUser
+[VERBOSE] Message 249 has action: MessageActionChatAddUser
+[VERBOSE] Message 250 has action: MessageActionChatAddUser
+[VERBOSE] Message 252 has action: MessageActionChatAddUser
+[VERBOSE] Message 253 has action: MessageActionChatAddUser
+[VERBOSE] Message 254 has action: MessageActionChatAddUser
+[VERBOSE] Message 255 has action: MessageActionChatAddUser
+[VERBOSE] Message 256 has action: MessageActionChatAddUser
+[VERBOSE] Message 257 has action: MessageActionChatAddUser
+[VERBOSE] Message 258 has action: MessageActionChatAddUser
+[VERBOSE] Message 259 has action: MessageActionChatAddUser
+[VERBOSE] Message 260 has action: MessageActionChatAddUser
+[VERBOSE] Message 261 has action: MessageActionChatAddUser
+[VERBOSE] Message 262 has action: MessageActionChatAddUser
+[VERBOSE] Message 263 has action: MessageActionChatAddUser
+[VERBOSE] Message 264 has action: MessageActionChatAddUser
+[VERBOSE] Message 265 has action: MessageActionChatAddUser
+[VERBOSE] Message 266 has action: MessageActionChatAddUser
+[VERBOSE] Message 267 has action: MessageActionChatAddUser
+[VERBOSE] Message 271 has action: MessageActionTopicCreate
+[VERBOSE] Message 272 has action: MessageActionChatAddUser
+[VERBOSE] Message 273 has action: MessageActionChatAddUser
+[VERBOSE] Message 275 has action: MessageActionChatAddUser
+[VERBOSE] Message 276 has action: MessageActionChatAddUser
+[VERBOSE] Message 277 has action: MessageActionChatAddUser
+[VERBOSE] Message 278 has action: MessageActionChatAddUser
+[VERBOSE] Message 279 has action: MessageActionChatAddUser
+[VERBOSE] Message 280 has action: MessageActionChatAddUser
+[VERBOSE] Message 281 has action: MessageActionChatAddUser
+[VERBOSE] Message 282 has action: MessageActionChatAddUser
+[VERBOSE] Message 288 has action: MessageActionChatAddUser
+[VERBOSE] Message 289 has action: MessageActionChatAddUser
+[VERBOSE] Message 292 has action: MessageActionTopicCreate
+[VERBOSE] Message 299 has action: MessageActionChatAddUser
+[VERBOSE] Message 300 has action: MessageActionChatAddUser
+[VERBOSE] Message 301 has action: MessageActionChatAddUser
+[VERBOSE] Message 304 has action: MessageActionChatAddUser
+[VERBOSE] Message 307 has action: MessageActionChatAddUser
+[VERBOSE] Message 316 has action: MessageActionChatAddUser
+[VERBOSE] Message 317 has action: MessageActionChatAddUser
+[VERBOSE] Message 318 has action: MessageActionChatAddUser
+[VERBOSE] Message 319 has action: MessageActionChatAddUser
+[VERBOSE] Message 320 has action: MessageActionChatAddUser
+[VERBOSE] Message 321 has action: MessageActionChatAddUser
+[VERBOSE] Message 322 has action: MessageActionChatAddUser
+[VERBOSE] Message 324 has action: MessageActionChatAddUser
+[VERBOSE] Message 325 has action: MessageActionChatAddUser
+[VERBOSE] Message 327 has action: MessageActionChatAddUser
+[VERBOSE] Message 328 has action: MessageActionChatAddUser
+[VERBOSE] Message 329 has action: MessageActionChatAddUser
+[VERBOSE] Message 330 has action: MessageActionChatAddUser
+[VERBOSE] Message 331 has action: MessageActionChatAddUser
+[VERBOSE] Message 332 has action: MessageActionChatAddUser
+[VERBOSE] Message 333 has action: MessageActionChatAddUser
+[VERBOSE] Message 334 has action: MessageActionChatAddUser
+[VERBOSE] Message 335 has action: MessageActionChatAddUser
+[VERBOSE] Message 336 has action: MessageActionChatAddUser
+[VERBOSE] Message 338 has action: MessageActionChatAddUser
+[VERBOSE] Message 340 has action: MessageActionChatAddUser
+[VERBOSE] Message 341 has action: MessageActionChatAddUser
+[VERBOSE] Message 344 has action: MessageActionChatAddUser
+[VERBOSE] Message 345 has action: MessageActionChatAddUser
+[VERBOSE] Message 349 has action: MessageActionChatAddUser
+[VERBOSE] Message 350 has action: MessageActionChatAddUser
+[VERBOSE] Message 351 has action: MessageActionChatAddUser
+[VERBOSE] Message 352 has action: MessageActionChatAddUser
+[VERBOSE] Message 353 has action: MessageActionChatAddUser
+[VERBOSE] Message 354 has action: MessageActionChatAddUser
+[VERBOSE] Message 356 has action: MessageActionChatAddUser
+[VERBOSE] Message 359 has action: MessageActionChatAddUser
+[VERBOSE] Message 360 has action: MessageActionChatAddUser
+[VERBOSE] Message 362 has action: MessageActionChatAddUser
+[VERBOSE] Message 364 has action: MessageActionChatAddUser
+[VERBOSE] Message 365 has action: MessageActionChatAddUser
+[VERBOSE] Message 367 has action: MessageActionChatAddUser
+[VERBOSE] Message 378 has action: MessageActionChatAddUser
+[VERBOSE] Message 379 has action: MessageActionChatAddUser
+[VERBOSE] Message 380 has action: MessageActionChatAddUser
+[VERBOSE] Message 390 has action: MessageActionChatAddUser
+[VERBOSE] Message 391 has action: MessageActionChatAddUser
+[VERBOSE] Message 392 has action: MessageActionChatAddUser
+[VERBOSE] Message 393 has action: MessageActionChatAddUser
+[VERBOSE] Message 394 has action: MessageActionChatAddUser
+[VERBOSE] Message 395 has action: MessageActionChatAddUser
+[VERBOSE] Message 396 has action: MessageActionChatAddUser
+[VERBOSE] Message 397 has action: MessageActionChatAddUser
+[VERBOSE] Message 398 has action: MessageActionChatAddUser
+[VERBOSE] Message 399 has action: MessageActionChatAddUser
+[VERBOSE] Message 405 has action: MessageActionChatAddUser
+[VERBOSE] Message 406 has action: MessageActionChatAddUser
+[VERBOSE] Message 407 has action: MessageActionChatAddUser
+[VERBOSE] Message 408 has action: MessageActionChatAddUser
+[VERBOSE] Message 409 has action: MessageActionChatAddUser
+[VERBOSE] Message 410 has action: MessageActionChatAddUser
+[VERBOSE] Message 413 has action: MessageActionChatAddUser
+[VERBOSE] Message 414 has action: MessageActionChatAddUser
+[VERBOSE] Message 415 has action: MessageActionChatAddUser
+[VERBOSE] Message 420 has action: MessageActionChatAddUser
+[VERBOSE] Message 421 has action: MessageActionChatAddUser
+[VERBOSE] Message 428 has action: MessageActionPinMessage
+[VERBOSE] Message 437 has action: MessageActionChatAddUser
+[VERBOSE] Message 438 has action: MessageActionChatAddUser
+[VERBOSE] Message 440 has action: MessageActionChatAddUser
+[VERBOSE] Message 444 has action: MessageActionChatAddUser
+[VERBOSE] Message 445 has action: MessageActionChatDeleteUser
+[VERBOSE] Message 448 has action: MessageActionChatAddUser
+[VERBOSE] Message 451 has action: MessageActionChatAddUser
+[VERBOSE] Message 467 has action: MessageActionTopicEdit
+[VERBOSE] Message 468 has action: MessageActionTopicEdit
+[VERBOSE] Message 473 has action: MessageActionTopicCreate
+[VERBOSE] Message 475 has action: MessageActionTopicCreate
+[VERBOSE] Message 476 has action: MessageActionChatEditTitle
+[VERBOSE] Message 477 has action: MessageActionChatAddUser
+[VERBOSE] Message 482 has action: MessageActionTopicCreate
+[VERBOSE] Message 483 has action: MessageActionChannelMigrateFrom
+[VERBOSE] Channel migrated from chat 4859423452
+
+Processed 483 messages total.
+[VERBOSE] Messages with senderId: 482
+[VERBOSE] Messages without senderId: 1 (anonymous posts)
+Resolving user details...
+
+Found 6 unique users.
+  - With username: 6
+  - Bots: 3
+  - Deleted accounts: 0
+[VERBOSE] User sources:
+[VERBOSE]   - participants: 6
+[2025-12-24T18:57:11.032] [WARN] - [Disconnecting...]
+[2025-12-24T18:57:11.032] [INFO] - [Disconnecting from 149.154.167.51:80/TCPFull...]
+Error: 414 |     }
+415 |
+416 |     const outDir = `data/${chatUsername}`;
+417 |     const outPath = `${outDir}/users.json`;
+418 |     fs.mkdirSync(outDir, { recursive: true });
+419 |     fs.writeFileSync(outPath, JSON.stringify(usersArray, null, 2));
+                                         ^
+TypeError: JSON.stringify cannot serialize BigInt.
+      at <anonymous> (/Users/konard/Code/Archive/konard/telegram-bot/chat-users.mjs:419:36)
