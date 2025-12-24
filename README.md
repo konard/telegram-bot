@@ -4,6 +4,7 @@ Scripts to work with telegram
 ## Features & Workflow
 
 - Export Telegram chat history to Markdown using your user account (not a bot)
+- Extract all unique users from a chat (authors, joins/leaves, mentions, forwards)
 - Uses only use-m for dynamic dependency loading (no package.json or npm install required)
 - Reads API credentials and defaults from a `.env` file (see `.env.example`)
 - Supports headless/automated operation via environment variables
@@ -47,12 +48,28 @@ Scripts to work with telegram
    TELEGRAM_CHAT_ID=
    TELEGRAM_MAX_GREETINGS=0
    ```
-2. Run the script:
+2. Run one of the available scripts:
+
+   **Export chat history to Markdown:**
    ```zsh
    bun history-to-markdown.mjs
    ```
+   Saves chat history to `data/{chat_username}/history.md`.
+
+   **Extract all unique users from a chat:**
+   ```zsh
+   bun chat-users.mjs
+   ```
+   Searches for chats by name (fuzzy matching). If multiple chats match, you'll be prompted to use a more specific query. Collects users from:
+   - Message authors
+   - User joined/left/added/removed events
+   - Forwarded message sources
+   - User mentions in messages
+   - Shared contacts
+
+   Saves users list to `data/{chat_username}/users.json`.
+
 3. If any required values are missing in `.env`, the script will prompt you interactively.
-4. The chat history will be saved as `data/{chat_username}/history.md`.
 
 ## Security & Git
 
