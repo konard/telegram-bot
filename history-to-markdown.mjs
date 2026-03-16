@@ -16,8 +16,8 @@
 // Use --all to download the entire history.
 //
 // Output structure:
-//   ./data/history-{telegramUserId}-{timestamp}/history.md (or history-1.md, history-2.md, ...)
-//   ./data/history-{telegramUserId}-{timestamp}/history.json (or history-1.json, history-2.json, ...)
+//   ./data/history-{telegramUserId}-{timestamp}/history-1.md, history-2.md, ...
+//   ./data/history-{telegramUserId}-{timestamp}/history-1.json, history-2.json, ...
 //   ./data/history-{telegramUserId}-{timestamp}/files/   (media files)
 //
 // Can also be imported as a library:
@@ -345,6 +345,7 @@ export function partitionMessages(messages, userMap, maxLines) {
 
 /**
  * Write synchronized MD and JSON parts to disk.
+ * Always uses history-{N}.md and history-{N}.json naming (even for a single part).
  * Returns { mdFiles: string[], jsonFiles: string[] }
  */
 export function writeParts(parts, outDir, baseName, exportMeta) {
@@ -356,15 +357,14 @@ export function writeParts(parts, outDir, baseName, exportMeta) {
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
 
-    // Determine filenames
-    const suffix = totalParts === 1 ? '' : `-${i + 1}`;
-    const mdFilename = `${baseName}${suffix}.md`;
-    const jsonFilename = `${baseName}${suffix}.json`;
+    // Always use numeric suffix: history-1.md, history-2.md, ...
+    const mdFilename = `${baseName}-${i + 1}.md`;
+    const jsonFilename = `${baseName}-${i + 1}.json`;
 
     // Build markdown content
     let mdContent = '';
 
-    // Header with export info (only on first part or each part if partitioned)
+    // Header with export info (only on first part)
     if (i === 0) {
       mdContent += '# Chat History Export\n\n';
       if (exportMeta) {
@@ -374,23 +374,15 @@ export function writeParts(parts, outDir, baseName, exportMeta) {
       }
     }
 
-    // Navigation and JSON link
-    if (totalParts > 1) {
-      const navLine = buildNavigation(i, totalParts, baseName, jsonFilename);
-      mdContent += navLine + '\n\n---\n\n';
-    } else {
-      // Single part: just link to JSON
-      mdContent += `**Source data:** [${jsonFilename}](${jsonFilename})\n\n---\n\n`;
-    }
+    // Navigation and JSON link (single hyperlink to the corresponding JSON part)
+    const navLine = buildNavigation(i, totalParts, baseName, jsonFilename);
+    mdContent += navLine + '\n\n---\n\n';
 
     // Messages
     mdContent += part.mdLines.join('\n');
 
-    // Navigation footer for multi-part
-    if (totalParts > 1) {
-      const navLine = buildNavigation(i, totalParts, baseName, jsonFilename);
-      mdContent += '\n\n---\n\n' + navLine;
-    }
+    // Navigation footer
+    mdContent += '\n\n---\n\n' + navLine;
 
     fs.writeFileSync(path.join(outDir, mdFilename), mdContent);
     mdFiles.push(mdFilename);

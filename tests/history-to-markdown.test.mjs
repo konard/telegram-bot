@@ -344,7 +344,7 @@ describe('writeParts', () => {
     if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
-  it('writes single part without numeric suffix', () => {
+  it('writes single part with numeric suffix history-1.md/json', () => {
     setup();
     try {
       const parts = [{
@@ -354,22 +354,22 @@ describe('writeParts', () => {
       const meta = { timestamp: '2025-01-01 12:00:00', mode: 'Full history' };
       const { mdFiles, jsonFiles } = writeParts(parts, tmpDir, 'history', meta);
 
-      expect(mdFiles).toEqual(['history.md']);
-      expect(jsonFiles).toEqual(['history.json']);
+      expect(mdFiles).toEqual(['history-1.md']);
+      expect(jsonFiles).toEqual(['history-1.json']);
 
       // Verify files exist
-      expect(fs.existsSync(path.join(tmpDir, 'history.md'))).toBe(true);
-      expect(fs.existsSync(path.join(tmpDir, 'history.json'))).toBe(true);
+      expect(fs.existsSync(path.join(tmpDir, 'history-1.md'))).toBe(true);
+      expect(fs.existsSync(path.join(tmpDir, 'history-1.json'))).toBe(true);
 
       // Verify JSON is valid and has 2-space indent
-      const jsonContent = fs.readFileSync(path.join(tmpDir, 'history.json'), 'utf8');
+      const jsonContent = fs.readFileSync(path.join(tmpDir, 'history-1.json'), 'utf8');
       const parsed = JSON.parse(jsonContent);
       expect(parsed.messages.length).toBe(1);
       expect(jsonContent).toContain('  '); // 2-space indent
 
-      // Verify MD has link to JSON
-      const mdContent = fs.readFileSync(path.join(tmpDir, 'history.md'), 'utf8');
-      expect(mdContent).toContain('[history.json](history.json)');
+      // Verify MD has single hyperlink to JSON
+      const mdContent = fs.readFileSync(path.join(tmpDir, 'history-1.md'), 'utf8');
+      expect(mdContent).toContain('[JSON](history-1.json)');
     } finally {
       cleanup();
     }
@@ -394,14 +394,18 @@ describe('writeParts', () => {
       expect(mdFiles).toEqual(['history-1.md', 'history-2.md']);
       expect(jsonFiles).toEqual(['history-1.json', 'history-2.json']);
 
-      // Verify navigation links
+      // Verify navigation links and single hyperlink to JSON per part
       const md1 = fs.readFileSync(path.join(tmpDir, 'history-1.md'), 'utf8');
       expect(md1).toContain('[Next part →](history-2.md)');
       expect(md1).toContain('[JSON](history-1.json)');
+      // history-1.md links only to history-1.json (not history-2.json)
+      expect(md1).not.toContain('history-2.json');
 
       const md2 = fs.readFileSync(path.join(tmpDir, 'history-2.md'), 'utf8');
       expect(md2).toContain('[← Previous part](history-1.md)');
       expect(md2).toContain('[JSON](history-2.json)');
+      // history-2.md links only to history-2.json (not history-1.json)
+      expect(md2).not.toContain('history-1.json');
 
       // Verify JSON has prev/next refs
       const json1 = JSON.parse(fs.readFileSync(path.join(tmpDir, 'history-1.json'), 'utf8'));
