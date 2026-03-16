@@ -4,11 +4,16 @@ Scripts to work with telegram
 ## Features & Workflow
 
 - Export Telegram chat history to Markdown using your user account (not a bot)
+- By default exports only the current active dialog (messages until a 4-hour gap)
+- Supports exporting entire chat history with `--all`
+- Downloads media files (images, audio, video, documents) alongside messages
+- Outputs structured data: `history.md` + `history.json` + `files/` in a timestamped directory
+- Automatically partitions large exports into parts with prev/next navigation links
+- Uses [lino-arguments](https://github.com/link-foundation/lino-arguments) for CLI arguments and configuration
 - Extract all unique users from a chat (authors, joins/leaves, mentions, forwards)
 - Uses only use-m for dynamic dependency loading (no package.json or npm install required)
 - Reads API credentials and defaults from a `.env` file (see `.env.example`)
 - Supports headless/automated operation via environment variables
-- Saves chat history to `data/{chat_username}/history.md` (not in repo root)
 - Ignores all exported data and secrets in git
 - Handles Telegram nicknames/usernames in export (not just numeric IDs)
 - Dates are formatted as `YYYY-MM-DD HH:mm:ss` (ISO-like, human readable)
@@ -46,15 +51,30 @@ Scripts to work with telegram
    TELEGRAM_PHONE=+1234567890
    TELEGRAM_CHAT_USERNAME=@your_chat_username
    TELEGRAM_CHAT_ID=
+   TELEGRAM_GAP_HOURS=4
+   TELEGRAM_MAX_LINES=1500
    TELEGRAM_MAX_GREETINGS=0
    ```
 2. Run one of the available scripts:
 
-   **Export chat history to Markdown:**
+   **Export current active dialog to Markdown:**
    ```zsh
    bun history-to-markdown.mjs
    ```
-   Saves chat history to `data/{chat_username}/history.md`.
+   Exports the current active dialog (messages since the last 4-hour gap) to
+   `data/history-{userId}-{timestamp}/history.md` + `history.json` + `files/`.
+
+   **Export entire chat history:**
+   ```zsh
+   bun history-to-markdown.mjs --all
+   ```
+
+   **Specify chat and gap threshold:**
+   ```zsh
+   bun history-to-markdown.mjs --chat @username --gap-hours 8 --verbose
+   ```
+
+   For full documentation, see [docs/history-to-markdown.md](docs/history-to-markdown.md).
 
    **Extract all unique users from a chat:**
    ```zsh
