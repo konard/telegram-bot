@@ -67,21 +67,38 @@ Each export creates a timestamped directory:
 ```
 data/
   history-{yourTelegramUserId}-{timestamp}/
-    history.md              # Main markdown file (or history_part1.md, history_part2.md, ...)
-    history.json            # Source data in JSON (or history_part1.json, history_part2.json, ...)
+    history.md              # Single-part export
+    history.json            # Source data in JSON
     files/                  # Downloaded media files (images, audio, video, documents)
-      photo_123.jpg
-      video_456.mp4
-      document_789.pdf
 ```
+
+When files exceed `--max-lines`, they are partitioned:
+
+```
+data/
+  history-{yourTelegramUserId}-{timestamp}/
+    history-1.md            # Part 1
+    history-1.json          # Part 1 source data (same messages as history-1.md)
+    history-2.md            # Part 2
+    history-2.json          # Part 2 source data (same messages as history-2.md)
+    ...
+    files/                  # Downloaded media files
+```
+
+### Synchronized Partitioning
+
+Each `history-N.md` and `history-N.json` contain **exactly the same messages**. The partitioning algorithm adds messages one at a time, checking that both the markdown and JSON representations stay under `--max-lines` (default: 1500). If adding a message would cause either file to exceed the limit, a new part is started.
+
+Each `history-N.md` contains a single link to its corresponding `history-N.json`.
 
 ### Markdown Format
 
-The `history.md` file contains:
+Each `history-N.md` file contains:
 
-1. **Header** with export metadata (timestamp, message count, mode)
-2. **Links** to all JSON data files
-3. **Messages** in chronological order, each with:
+1. **Header** with export metadata (timestamp, message count, mode) — on the first part
+2. **Link** to the corresponding JSON file
+3. **Navigation** links (previous/next part) for multi-part exports
+4. **Messages** in chronological order, each with:
    - Sender username and timestamp
    - Message text
    - Embedded images (as `![type](files/filename)`)
@@ -89,14 +106,15 @@ The `history.md` file contains:
 
 ### JSON Format
 
-The `history.json` file contains structured data:
+Each `history-N.json` file contains structured data with 2-space indentation:
 
 ```json
 {
   "part": 1,
-  "totalParts": 1,
+  "totalParts": 2,
   "totalMessages": 42,
-  "messagesInPart": 42,
+  "messagesInPart": 21,
+  "nextPart": "history-2.json",
   "messages": [
     {
       "id": 12345,
@@ -111,13 +129,6 @@ The `history.json` file contains structured data:
 }
 ```
 
-### File Partitioning
-
-When markdown or JSON files exceed `--max-lines` (default: 1500), they are automatically split into parts:
-- `history_part1.md`, `history_part2.md`, etc.
-- Each part has navigation links to the previous and next parts at the top and bottom.
-- JSON parts include `previousPart` and `nextPart` fields for programmatic navigation.
-
 ### Media Support
 
 The script downloads the following media types:
@@ -130,6 +141,27 @@ The script downloads the following media types:
 - **Images** sent as documents (`.png`, `.gif`, `.webp`)
 
 Non-downloadable media (polls, contacts, locations, etc.) are noted in the markdown as `*[type]*`.
+
+## Library Usage
+
+`history-to-markdown.mjs` can be imported as a library (auto-detected — no CLI execution when imported):
+
+```javascript
+import {
+  normalizeDate,
+  formatDate,
+  getMediaType,
+  filterCurrentActiveDialog,
+  partitionMessages,
+  writeParts,
+  renderMessageMarkdown,
+  renderMessageJson,
+} from './history-to-markdown.mjs';
+
+// Example: partition messages with custom max lines
+const parts = partitionMessages(messages, userMap, 500);
+const { mdFiles, jsonFiles } = writeParts(parts, outputDir, 'history', exportMeta);
+```
 
 ## Examples
 
@@ -172,9 +204,17 @@ bun history-to-markdown.mjs
 
 ## Navigating the Export
 
-All data is traversable from `history.md`:
-- Open `history.md` (or `history_part1.md`) in any Markdown viewer
+All data is traversable from `history.md` (or `history-1.md`):
+- Open the markdown file in any Markdown viewer
+- Click the JSON link to view the structured source data
 - Click embedded images to view full-size media
 - Click media links to open audio, video, and document files
-- Click JSON data links to view structured source data
 - Use prev/next navigation links for multi-part exports
+
+## Running Tests
+
+Unit tests cover the core partitioning logic and utility functions:
+
+```bash
+bun test tests/history-to-markdown.test.mjs
+```
