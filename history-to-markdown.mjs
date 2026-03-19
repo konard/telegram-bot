@@ -31,6 +31,76 @@ import path from 'path';
 // ============================================================================
 
 /**
+ * Parse a Telegram service action into structured data.
+ *
+ * Returns an array of { subjectId, text } objects.
+ * - subjectId: the user ID who is the subject of the action (may differ from senderId).
+ *   If null, use senderId as the subject.
+ * - text: the action description.
+ *
+ * For ChatAddUser, returns one entry per added user.
+ */
+export function parseServiceAction(action, senderId) {
+  if (!action) return [{ subjectId: null, text: '' }];
+  const cls = action.className || '';
+  switch (cls) {
+    case 'MessageActionChatAddUser': {
+      const users = action.users || [];
+      if (users.length === 0) return [{ subjectId: null, text: 'joined the group' }];
+      return users.map(uid => {
+        const id = typeof uid === 'bigint' ? uid : (typeof uid === 'object' && 'value' in uid ? uid.value : uid);
+        const isSelf = String(id) === String(senderId);
+        return { subjectId: id, text: isSelf ? 'joined the group' : 'was added to the group' };
+      });
+    }
+    case 'MessageActionChatJoinedByLink':
+      return [{ subjectId: null, text: 'joined the group via invite link' }];
+    case 'MessageActionChatJoinedByRequest':
+      return [{ subjectId: null, text: 'joined the group via request' }];
+    case 'MessageActionChatDeleteUser': {
+      const uid = action.userId;
+      const id = typeof uid === 'bigint' ? uid : (typeof uid === 'object' && 'value' in uid ? uid.value : uid);
+      const isSelf = String(id) === String(senderId);
+      return [{ subjectId: id, text: isSelf ? 'left the group' : 'was removed from the group' }];
+    }
+    case 'MessageActionChatCreate':
+      return [{ subjectId: null, text: `created the group "${action.title || ''}"` }];
+    case 'MessageActionChatEditTitle':
+      return [{ subjectId: null, text: `changed the group title to "${action.title || ''}"` }];
+    case 'MessageActionChatEditPhoto':
+      return [{ subjectId: null, text: 'changed the group photo' }];
+    case 'MessageActionChatDeletePhoto':
+      return [{ subjectId: null, text: 'removed the group photo' }];
+    case 'MessageActionPinMessage':
+      return [{ subjectId: null, text: 'pinned a message' }];
+    case 'MessageActionChannelCreate':
+      return [{ subjectId: null, text: `created the channel "${action.title || ''}"` }];
+    case 'MessageActionChatMigrateTo':
+      return [{ subjectId: null, text: null }]; // skip, covered by ChannelMigrateFrom
+    case 'MessageActionChannelMigrateFrom':
+      return [{ subjectId: null, text: `"${action.title || ''}" group upgraded to a supergroup` }];
+    case 'MessageActionGameScore':
+      return [{ subjectId: null, text: 'scored in a game' }];
+    case 'MessageActionPhoneCall':
+      return [{ subjectId: null, text: 'made a phone call' }];
+    case 'MessageActionScreenshotTaken':
+      return [{ subjectId: null, text: 'took a screenshot' }];
+    case 'MessageActionContactSignUp':
+      return [{ subjectId: null, text: 'joined Telegram' }];
+    case 'MessageActionGroupCall':
+      return [{ subjectId: null, text: action.duration ? 'ended a group call' : 'started a group call' }];
+    case 'MessageActionInviteToGroupCall':
+      return [{ subjectId: null, text: 'invited users to a group call' }];
+    case 'MessageActionTopicCreate':
+      return [{ subjectId: null, text: `created topic "${action.title || ''}"` }];
+    case 'MessageActionTopicEdit':
+      return [{ subjectId: null, text: action.title ? `edited topic to "${action.title}"` : 'edited a topic' }];
+    default:
+      return [{ subjectId: null, text: `[service: ${cls}]` }];
+  }
+}
+
+/**
  * Normalize a Telegram message date to a Date object.
  */
 export function normalizeDate(msgDate) {
@@ -213,6 +283,12 @@ export function countLines(str) {
  * Render a single message as markdown text.
  */
 export function renderMessageMarkdown(msg, senderName) {
+  if (msg.isService) {
+    if (!msg.senderId) {
+      return `*${msg.text}* [${msg.date}]\n`;
+    }
+    return `*${senderName} ${msg.text}* [${msg.date}]\n`;
+  }
   let line = `**${senderName}** [${msg.date}]:`;
   if (msg.text) {
     line += `\n${msg.text}`;
@@ -243,6 +319,12 @@ export function renderMessageJson(msg, senderName) {
     senderName,
     text: msg.text,
   };
+  if (msg.isService) {
+    entry.isService = true;
+    if (msg.rawAction) {
+      entry.rawAction = msg.rawAction;
+    }
+  }
   if (msg.hasMedia) {
     entry.mediaType = msg.mediaType;
     entry.mediaFilePath = msg.mediaFilePath || null;
@@ -506,35 +588,86 @@ if (isMainModule()) {
       log.info(`Output directory: ${outDir}`);
       log.info('Fetching messages...');
 
-      // Collect all messages (newest first from API, we'll reverse later)
-      const rawMessages = [];
-      let fetchCount = 0;
-      for await (const message of client.iterMessages(entity, { limit: config.all ? 100000 : 10000 })) {
-        fetchCount++;
-        if (fetchCount % 1000 === 0) {
-          log.info(`Fetched ${fetchCount} messages...`);
+      // Helper to collect messages from a given entity
+      async function collectMessages(targetEntity, limit) {
+        const collected = [];
+        let count = 0;
+        for await (const message of client.iterMessages(targetEntity, { limit })) {
+          count++;
+          if (count % 1000 === 0) {
+            log.info(`Fetched ${count} messages...`);
+          }
+
+          const dateObj = normalizeDate(message.date);
+
+          if (message.className === 'MessageService') {
+            const entries = parseServiceAction(message.action, message.senderId);
+            const action = message.action;
+            const rawAction = action ? { className: action.className, ...action } : null;
+            for (const entry of entries) {
+              if (entry.text === null) continue; // skip redundant service messages
+              collected.push({
+                id: message.id,
+                date: formatDate(dateObj),
+                dateObj,
+                senderId: entry.subjectId != null ? entry.subjectId : message.senderId,
+                text: entry.text,
+                mediaType: null,
+                mediaFilePath: null,
+                hasMedia: false,
+                isService: true,
+                rawAction,
+                _telegramMessage: message,
+              });
+            }
+            continue;
+          }
+
+          const mediaType = getMediaType(message.media);
+
+          collected.push({
+            id: message.id,
+            date: formatDate(dateObj),
+            dateObj,
+            senderId: message.senderId,
+            text: message.message || '',
+            mediaType,
+            mediaFilePath: null,
+            hasMedia: !!message.media && !!mediaType,
+            _telegramMessage: message,
+          });
         }
+        return collected;
+      }
 
-        const dateObj = normalizeDate(message.date);
-        const mediaType = getMediaType(message.media);
+      // Collect messages from the supergroup/channel
+      const rawMessages = await collectMessages(entity, config.all ? 100000 : 10000);
+      log.info(`Fetched ${rawMessages.length} messages from main chat.`);
 
-        rawMessages.push({
-          id: message.id,
-          date: formatDate(dateObj),
-          dateObj,
-          senderId: message.senderId,
-          text: message.message || '',
-          mediaType,
-          mediaFilePath: null,
-          hasMedia: !!message.media && !!mediaType,
-          _telegramMessage: message,
-        });
+      // Check if this is a migrated supergroup — fetch old basic group history too
+      const migrateMsg = rawMessages.find(m => m.rawAction && m.rawAction.className === 'MessageActionChannelMigrateFrom');
+      if (migrateMsg) {
+        const oldChatId = migrateMsg.rawAction.chatId;
+        log.info(`Detected migration from basic group ${oldChatId}, fetching old history...`);
+        try {
+          const oldEntity = await client.getEntity(BigInt(oldChatId));
+          const oldMessages = await collectMessages(oldEntity, config.all ? 100000 : 10000);
+          log.info(`Fetched ${oldMessages.length} messages from old basic group.`);
+          // Prepend old messages (they are newer-first from API, same as rawMessages)
+          rawMessages.push(...oldMessages);
+        } catch (err) {
+          log.warn(`Could not fetch old basic group history: ${err.message}`);
+        }
       }
 
       log.info(`Fetched ${rawMessages.length} messages total.`);
 
-      // Reverse to chronological order (oldest first)
-      rawMessages.reverse();
+      // Sort into chronological order (oldest first), stable by message ID for same timestamp
+      rawMessages.sort((a, b) => {
+        const timeDiff = (a.dateObj?.getTime() || 0) - (b.dateObj?.getTime() || 0);
+        if (timeDiff !== 0) return timeDiff;
+        return (a.id || 0) - (b.id || 0);
+      });
 
       // Apply active dialog filter unless --all is specified
       let messages;
