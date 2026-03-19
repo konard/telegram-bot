@@ -5,7 +5,7 @@
 //   bun history-to-markdown.mjs [OPTIONS]
 //
 // Options:
-//   --chat <username|id>         Chat username (with @) or numeric chat ID
+//   --chat <username|id|link>     Chat username (with @), numeric chat ID, or t.me/c/ link
 //   --all                        Download entire history (default: current active dialog)
 //   --gap-hours <N>              Hours of inactivity to define dialog boundary (default: 4)
 //   --max-lines <N>              Max lines per history part before splitting (default: 1500)
@@ -429,7 +429,7 @@ if (isMainModule()) {
     yargs: ({ yargs, getenv }) => yargs
       .option('chat', {
         type: 'string',
-        describe: 'Chat username (with @) or numeric chat ID',
+        describe: 'Chat username (with @), numeric chat ID, or t.me/c/ link',
         default: getenv('TELEGRAM_CHAT_USERNAME', '') || getenv('TELEGRAM_CHAT_ID', ''),
       })
       .option('all', {
@@ -483,7 +483,13 @@ if (isMainModule()) {
         const input = await use('readline-sync');
         chat = input.question('Enter chat username (with @) or chat ID: ');
       }
-      chat = chat.replace(/[^\w@-]/g, '');
+      // Support t.me/c/<id>/<msgId> links — extract chat ID with -100 prefix
+      const tmeChatMatch = chat.match(/t\.me\/c\/(\d+)(?:\/\d+)?/);
+      if (tmeChatMatch) {
+        chat = `-100${tmeChatMatch[1]}`;
+      } else {
+        chat = chat.replace(/[^\w@-]/g, '');
+      }
       log.verbose(`Chat target: ${chat}`);
 
       const entity = await client.getEntity(chat);
