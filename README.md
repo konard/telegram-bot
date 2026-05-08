@@ -11,6 +11,7 @@ Scripts to work with telegram
 - Automatically partitions large exports into parts with prev/next navigation links
 - Uses [lino-arguments](https://github.com/link-foundation/lino-arguments) for CLI arguments and configuration
 - Extract all unique users from a chat (authors, joins/leaves, mentions, forwards)
+- Add visible chat users to Telegram contacts with a safe dry-run first
 - Uses only use-m for dynamic dependency loading (no package.json or npm install required)
 - Reads API credentials and defaults from a `.env` file (see `.env.example`)
 - Supports headless/automated operation via environment variables
@@ -88,6 +89,22 @@ Scripts to work with telegram
    - Shared contacts
 
    Saves users list to `data/{chat_username}/users.json`.
+
+   **Preview adding visible chat users to contacts:**
+   ```zsh
+   bun add-chat-users-to-contacts.mjs --chat @your_chat_username
+   ```
+   This scans visible participants and message users, skips bots/deleted/fake/scam
+   accounts, and writes a dry-run report to `data/{chat_username}/`.
+
+   **Actually add eligible users to contacts:**
+   ```zsh
+   bun add-chat-users-to-contacts.mjs --chat @your_chat_username --apply --limit 20
+   ```
+   The script uses Telegram's MTProto `contacts.addContact` method through your
+   user account. It does not require users' phone numbers. By default it does not
+   share your phone number; pass `--share-phone` only if you intentionally want
+   to allow added users to see it.
 
 3. If any required values are missing in `.env`, the script will prompt you interactively.
 
