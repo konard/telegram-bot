@@ -89,6 +89,10 @@ data/
 
 Each `history-N.md` and `history-N.json` contain **exactly the same messages**. The partitioning algorithm adds messages one at a time, checking that both the markdown and JSON representations stay under `--max-lines` (default: 1500). If adding a message would cause either file to exceed the limit, a new part is started.
 
+The limit is enforced on the **physical lines of the written files**, including the export header, navigation lines and `---` separators (their size is reserved exactly). Multiline messages are counted by their real line count.
+
+If a single message is too long to fit into one Markdown part, its Markdown text is continued into the following part(s), marked with `*(continued in next part)*` / `*(continued from previous part)*`. Its full JSON record is stored once, in the part where the message starts; JSON files of the following parts reference it via `continuedMessages: [{ id, startsInPart, file }]`. If `--max-lines` is too small for the wrappers, or one message's JSON record cannot fit into a single JSON file, the export fails with an explicit error instead of writing an oversized file.
+
 Each `history-N.md` contains a single link to its corresponding `history-N.json`.
 
 ### Markdown Format

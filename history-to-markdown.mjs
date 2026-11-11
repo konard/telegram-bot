@@ -338,8 +338,12 @@ const bigIntReplacer = (key, value) =>
 /**
  * Render a JSON part file content from an array of message objects and metadata.
  * Returns the formatted JSON string.
+ *
+ * `continuations` lists messages whose Markdown text continues into this part
+ * from an earlier part (the full JSON record is stored only once, in the part
+ * where the message starts): [{ id, startsInPart, file }]
  */
-export function renderJsonPartContent(jsonMessages, partIndex, totalParts, totalMessages, baseName) {
+export function renderJsonPartContent(jsonMessages, partIndex, totalParts, totalMessages, baseName, continuations = []) {
   const wrapper = {
     part: partIndex + 1,
     totalParts,
@@ -354,6 +358,14 @@ export function renderJsonPartContent(jsonMessages, partIndex, totalParts, total
     if (partIndex < totalParts - 1) {
       wrapper.nextPart = `${baseName}-${partIndex + 2}.json`;
     }
+  }
+
+  if (continuations && continuations.length > 0) {
+    wrapper.continuedMessages = continuations.map(c => ({
+      id: c.id,
+      startsInPart: c.startsInPart,
+      file: `${baseName}-${c.startsInPart}.json`,
+    }));
   }
 
   wrapper.messages = jsonMessages;
@@ -380,49 +392,182 @@ export function buildNavigation(partIndex, totalParts, baseName, jsonFilename) {
 }
 
 /**
- * Partition messages into synchronized MD and JSON parts, ensuring both stay under maxLines.
- *
- * Returns an array of parts, each: { messages: [...jsonMsgs], mdLines: [...strings] }
+ * Build the markdown header written before the messages of a part.
  */
-export function partitionMessages(messages, userMap, maxLines) {
+export function buildMarkdownHeader(partIndex, navLine, exportMeta, totalMessages) {
+  let header = '';
+  if (partIndex === 0) {
+    header += '# Chat History Export\n\n';
+    if (exportMeta) {
+      header += `**Exported:** ${exportMeta.timestamp}\n`;
+      header += `**Messages:** ${totalMessages}\n`;
+      header += `**Mode:** ${exportMeta.mode}\n\n`;
+    }
+  }
+  header += navLine + '\n\n---\n\n';
+  return header;
+}
+
+/**
+ * Build the markdown footer written after the messages of a part.
+ */
+export function buildMarkdownFooter(navLine) {
+  return '\n\n---\n\n' + navLine;
+}
+
+/**
+ * Render a full markdown part file from its segments.
+ */
+export function renderMarkdownPartContent(mdLines, partIndex, totalParts, baseName, exportMeta, totalMessages) {
+  const jsonFilename = `${baseName}-${partIndex + 1}.json`;
+  const navLine = buildNavigation(partIndex, totalParts, baseName, jsonFilename);
+  return buildMarkdownHeader(partIndex, navLine, exportMeta, totalMessages)
+    + mdLines.join('\n')
+    + buildMarkdownFooter(navLine);
+}
+
+/**
+ * Exact number of physical lines that header + footer add to a markdown part
+ * (the header ends with a newline, so messages start on a fresh line and the
+ * wrapper lines simply add to the message lines).
+ */
+export function markdownWrapperLines(isFirstPart, hasExportMeta) {
+  const header = buildMarkdownHeader(isFirstPart ? 0 : 1, 'nav', hasExportMeta ? { timestamp: 't', mode: 'm' } : null, 0);
+  // header ends with '\n' so countLines counts one extra empty trailing line
+  return (countLines(header) - 1) + (countLines(buildMarkdownFooter('nav')) - 1);
+}
+
+export const CONTINUED_FROM_MARKER = '*(continued from previous part)*';
+export const CONTINUES_IN_MARKER = '*(continued in next part)*';
+
+/**
+ * Render one markdown segment of a message that is split across parts.
+ * `bodyLines` are physical lines of the original message markdown.
+ */
+export function renderContinuationSegment(bodyLines, isFirstSegment, isLastSegment) {
+  let text = '';
+  if (!isFirstSegment) text += CONTINUED_FROM_MARKER + '\n';
+  text += bodyLines.join('\n');
+  if (!isLastSegment) text += '\n' + CONTINUES_IN_MARKER;
+  return text + '\n';
+}
+
+/**
+ * Partition messages into synchronized MD and JSON parts, ensuring every
+ * written file (including header, navigation and footer) has at most
+ * maxLines physical lines.
+ *
+ * - Physical lines of every message are counted (not the number of messages).
+ * - Wrapper/navigation lines are reserved exactly (see markdownWrapperLines).
+ * - A message whose markdown cannot fit into a single part is continued into
+ *   additional parts with explicit "continued" markers. Its full JSON record is
+ *   stored once, in the part where it starts; later parts reference it via
+ *   `continuedMessages`.
+ * - If maxLines is too small to hold the wrappers, or a single JSON record
+ *   cannot fit into one JSON file, an Error is thrown (explicit refusal).
+ *
+ * Options:
+ *   hasExportMeta (default true) — reserve space for the export metadata
+ *   header on the first part (pass false when writeParts gets exportMeta=null).
+ *
+ * Returns an array of parts, each:
+ *   { messages: [...jsonMsgs], mdLines: [...strings], continuations: [...] }
+ */
+export function partitionMessages(messages, userMap, maxLines, options = {}) {
   if (messages.length === 0) return [];
+  const hasExportMeta = options.hasExportMeta !== false;
+
+  const minSegment = countLines(renderContinuationSegment(['x'], false, false));
+  if (!Number.isFinite(maxLines) || maxLines < markdownWrapperLines(true, hasExportMeta) + minSegment) {
+    throw new Error(`maxLines=${maxLines} is too small to fit part headers, navigation and at least one message line`);
+  }
 
   const parts = [];
-  let currentMdLines = [];
-  let currentJsonMsgs = [];
+  let current = null;
+
+  const newPart = () => {
+    current = { mdLines: [], messages: [], continuations: [], usedMdLines: 0 };
+  };
+  const flush = () => {
+    if (current && (current.mdLines.length > 0 || current.messages.length > 0)) {
+      parts.push(current);
+    }
+    newPart();
+  };
+  const mdCapacity = () => maxLines - markdownWrapperLines(parts.length === 0, hasExportMeta);
+  // Worst-case JSON wrapper: both previous/next links present.
+  const jsonLines = (msgs, continuations) =>
+    countLines(renderJsonPartContent(msgs, 1, 3, 0, 'history', continuations));
+  const fitsJson = (part, jsonMsg) => jsonLines([...part.messages, jsonMsg], part.continuations) <= maxLines;
+
+  newPart();
 
   for (const msg of messages) {
     const senderName = userMap[msg.senderId] || String(msg.senderId || 'unknown');
     const mdText = renderMessageMarkdown(msg, senderName);
     const jsonMsg = renderMessageJson(msg, senderName);
+    const mdCount = countLines(mdText);
 
-    // Calculate how many lines the MD would have after adding this message
-    const mdLinesAfter = currentMdLines.length + countLines(mdText);
+    const fitsCurrent = () =>
+      current.usedMdLines + mdCount <= mdCapacity() && fitsJson(current, jsonMsg);
 
-    // Calculate how many lines the JSON would have after adding this message
-    // We need to estimate: the full JSON with wrapper has overhead + per-message lines
-    const testJsonMsgs = [...currentJsonMsgs, jsonMsg];
-    const testJsonContent = JSON.stringify({ messages: testJsonMsgs }, bigIntReplacer, 2);
-    // Add ~6 lines for wrapper metadata (part, totalParts, totalMessages, etc.)
-    const jsonLinesAfter = countLines(testJsonContent) + 6;
-
-    // If adding this message would make either file exceed maxLines, and we already have messages, start a new part
-    if (currentMdLines.length > 0 && (mdLinesAfter > maxLines || jsonLinesAfter > maxLines)) {
-      parts.push({ mdLines: currentMdLines, messages: currentJsonMsgs });
-      currentMdLines = [];
-      currentJsonMsgs = [];
+    if (!fitsCurrent() && current.mdLines.length > 0) {
+      flush();
     }
 
-    currentMdLines.push(mdText);
-    currentJsonMsgs.push(jsonMsg);
+    if (!fitsJson(current, jsonMsg)) {
+      throw new Error(`Message ${msg.id} JSON record needs more than maxLines=${maxLines} lines and cannot be stored in a single part`);
+    }
+
+    if (current.usedMdLines + mdCount <= mdCapacity()) {
+      current.mdLines.push(mdText);
+      current.messages.push(jsonMsg);
+      current.usedMdLines += mdCount;
+      continue;
+    }
+
+    // Oversized markdown record: continue it across additional parts.
+    // mdText ends with '\n'; drop the trailing empty line.
+    const bodyLines = mdText.replace(/\n$/, '').split('\n');
+    let offset = 0;
+    let isFirstSegment = true;
+    current.messages.push(jsonMsg);
+    const startsInPart = parts.length + 1;
+    while (offset < bodyLines.length) {
+      const available = mdCapacity() - current.usedMdLines;
+      const prefix = isFirstSegment ? 0 : 1;
+      const remaining = bodyLines.length - offset;
+      let take;
+      if (remaining + prefix + 1 <= available) {
+        take = remaining; // last segment: prefix + body + trailing ''
+      } else {
+        take = available - prefix - 2; // + continues marker + trailing ''
+      }
+      if (take < 1) {
+        // Cannot happen for a fresh part (guarded above); flush and retry.
+        flush();
+        continue;
+      }
+      if (!isFirstSegment) {
+        current.continuations.push({ id: msg.id, startsInPart });
+      }
+      const isLastSegment = offset + take >= bodyLines.length;
+      const segment = renderContinuationSegment(bodyLines.slice(offset, offset + take), isFirstSegment, isLastSegment);
+      current.mdLines.push(segment);
+      current.usedMdLines += countLines(segment);
+      offset += take;
+      isFirstSegment = false;
+      if (!isLastSegment) flush();
+    }
   }
 
-  // Push remaining
-  if (currentMdLines.length > 0) {
-    parts.push({ mdLines: currentMdLines, messages: currentJsonMsgs });
-  }
+  flush();
 
-  return parts;
+  return parts.map(({ mdLines, messages: msgs, continuations }) => ({
+    mdLines,
+    messages: msgs,
+    continuations,
+  }));
 }
 
 /**
@@ -443,34 +588,11 @@ export function writeParts(parts, outDir, baseName, exportMeta) {
     const mdFilename = `${baseName}-${i + 1}.md`;
     const jsonFilename = `${baseName}-${i + 1}.json`;
 
-    // Build markdown content
-    let mdContent = '';
-
-    // Header with export info (only on first part)
-    if (i === 0) {
-      mdContent += '# Chat History Export\n\n';
-      if (exportMeta) {
-        mdContent += `**Exported:** ${exportMeta.timestamp}\n`;
-        mdContent += `**Messages:** ${totalMessages}\n`;
-        mdContent += `**Mode:** ${exportMeta.mode}\n\n`;
-      }
-    }
-
-    // Navigation and JSON link (single hyperlink to the corresponding JSON part)
-    const navLine = buildNavigation(i, totalParts, baseName, jsonFilename);
-    mdContent += navLine + '\n\n---\n\n';
-
-    // Messages
-    mdContent += part.mdLines.join('\n');
-
-    // Navigation footer
-    mdContent += '\n\n---\n\n' + navLine;
-
+    const mdContent = renderMarkdownPartContent(part.mdLines, i, totalParts, baseName, exportMeta, totalMessages);
     fs.writeFileSync(path.join(outDir, mdFilename), mdContent);
     mdFiles.push(mdFilename);
 
-    // Build JSON content
-    const jsonContent = renderJsonPartContent(part.messages, i, totalParts, totalMessages, baseName);
+    const jsonContent = renderJsonPartContent(part.messages, i, totalParts, totalMessages, baseName, part.continuations || []);
     fs.writeFileSync(path.join(outDir, jsonFilename), jsonContent);
     jsonFiles.push(jsonFilename);
   }

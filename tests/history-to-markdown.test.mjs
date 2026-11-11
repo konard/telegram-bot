@@ -514,7 +514,7 @@ describe('end-to-end partitioning guarantee', () => {
         const content = fs.readFileSync(path.join(tmpDir, f), 'utf8');
         const lines = content.split('\n').length;
         // JSON files should be under maxLines (the partitioning guarantees this for message content)
-        expect(lines).toBeLessThanOrEqual(maxLines + 20); // Allow some overhead for wrapper
+        expect(lines).toBeLessThanOrEqual(maxLines);
       }
 
       // Verify message counts match between MD and JSON
@@ -526,5 +526,70 @@ describe('end-to-end partitioning guarantee', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('physical maxLines guarantee (issue #15)', () => {
+  function physicalLines(file) {
+    return fs.readFileSync(file, 'utf8').split(/\r\n|\r|\n/).length;
+  }
+  function exportAndCheck(messages, maxLines, meta) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'history-cap-'));
+    try {
+      const parts = partitionMessages(messages, { '7': 'Alice' }, maxLines, { hasExportMeta: !!meta });
+      const { mdFiles, jsonFiles } = writeParts(parts, tmpDir, 'history', meta);
+      const files = [...mdFiles, ...jsonFiles].map(f => path.join(tmpDir, f));
+      for (const f of files) expect(physicalLines(f)).toBeLessThanOrEqual(maxLines);
+      const md = mdFiles.map(f => fs.readFileSync(path.join(tmpDir, f), 'utf8'));
+      const json = jsonFiles.map(f => JSON.parse(fs.readFileSync(path.join(tmpDir, f), 'utf8')));
+      return { parts, md, json };
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+  const lines = n => Array.from({ length: n }, (_, i) => `line ${i + 1}`).join('\n');
+  const msg = (id, text) => ({ id, date: '2026-01-01 00:00:00', senderId: '7', text });
+
+  it('splits one oversized multiline message (issue repro) and keeps every text line', () => {
+    for (const meta of [null, { timestamp: 't', mode: 'm' }]) {
+      const { md, json } = exportAndCheck([msg(1, lines(1500))], 1500, meta);
+      expect(md.length).toBe(2);
+      expect(md[0]).toContain('*(continued in next part)*');
+      expect(md[1]).toContain('*(continued from previous part)*');
+      const all = md.join('\n');
+      expect(all).toContain('line 1\n');
+      expect(all).toContain('line 1500\n');
+      // Full JSON record stored once; continuation referenced
+      expect(json[0].messages.length).toBe(1);
+      expect(json[0].messages[0].text).toBe(lines(1500));
+      expect(json[1].messages.length).toBe(0);
+      expect(json[1].continuedMessages).toEqual([{ id: 1, startsInPart: 1, file: 'history-1.json' }]);
+      expect(json[0].totalMessages).toBe(1);
+    }
+  });
+
+  it('counts physical lines of several multiline messages', () => {
+    const messages = Array.from({ length: 30 }, (_, i) => msg(i + 1, lines(20)));
+    const { md, json } = exportAndCheck(messages, 100, { timestamp: 't', mode: 'm' });
+    expect(md.length).toBeGreaterThan(1);
+    expect(json.reduce((s, j) => s + j.messages.length, 0)).toBe(30);
+    for (const m of md) expect(m).not.toContain('continued');
+  });
+
+  it('is exact at the boundary: a file can reach but not exceed maxLines', () => {
+    for (let n = 1; n <= 60; n++) {
+      const messages = [msg(1, lines(n)), msg(2, lines(3)), msg(3, lines(n * 2))];
+      for (const max of [20, 21, 37]) exportAndCheck(messages, max, n % 2 ? null : { timestamp: 't', mode: 'm' });
+    }
+  });
+
+  it('refuses a maxLines too small for wrappers', () => {
+    expect(() => partitionMessages([msg(1, 'hi')], {}, 5)).toThrow(/too small/);
+  });
+
+  it('refuses a JSON record that cannot fit into one file', () => {
+    // Markdown wrappers fit in 14 lines without export metadata, but one JSON
+    // record plus the JSON wrapper needs more, so the exporter must refuse.
+    expect(() => partitionMessages([msg(1, 'x')], {}, 14, { hasExportMeta: false })).toThrow(/JSON record/);
   });
 });

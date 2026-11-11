@@ -2,7 +2,6 @@
 import fs from 'fs';
 import path from 'path';
 import { Buffer } from 'buffer';
-import { usingTelegram } from './utils.mjs';
 
 // send-greeting-sticker.mjs
 //
@@ -14,6 +13,66 @@ import { usingTelegram } from './utils.mjs';
 
 // Define target chat
 const chatUsername = '@The_Jacque_Fresco';
+
+/**
+ * Return a stable key for a Telegram document id (BigInt, Integer-like or number).
+ */
+export function getDocumentIdKey(doc) {
+  const raw = doc?.document ? doc.document : doc;
+  const id = raw?.id;
+  if (id === undefined || id === null) return null;
+  if (typeof id === 'object' && 'value' in id) return String(id.value);
+  return String(id);
+}
+
+/**
+ * Deduplicate documents by id, keeping the first occurrence.
+ * Documents without an id are kept as-is.
+ */
+export function dedupeDocuments(docs) {
+  const seen = new Set();
+  const result = [];
+  for (const doc of docs) {
+    const key = getDocumentIdKey(doc);
+    if (key !== null) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    result.push(doc);
+  }
+  return result;
+}
+
+/**
+ * Collect sticker documents from the user's installed mask sets.
+ *
+ * messages.getMaskStickers returns messages.AllStickers, which contains
+ * `sets: Vector<StickerSet>` (not documents), so every set must be fetched with
+ * messages.getStickerSet to obtain its `documents`.
+ * See https://core.telegram.org/method/messages.getMaskStickers
+ *
+ * Per-set failures are collected in `errors` and do not abort the others.
+ * Returns { documents, errors: [{ set, error }] }.
+ */
+export async function collectMaskStickerDocuments({ client, Api, log = console }) {
+  const mask = await client.invoke(new Api.messages.GetMaskStickers({ hash: 0 }));
+  const sets = mask?.sets ?? []; // messages.AllStickersNotModified has no sets
+  const documents = [];
+  const errors = [];
+  for (const set of sets) {
+    try {
+      const detail = await client.invoke(new Api.messages.GetStickerSet({
+        stickerset: new Api.InputStickerSetID({ id: set.id, accessHash: set.accessHash }),
+        hash: 0,
+      }));
+      documents.push(...(detail?.documents ?? []));
+    } catch (error) {
+      errors.push({ set, error });
+      log.error(`Error fetching mask set ${set.shortName ?? set.id}:`, error);
+    }
+  }
+  return { documents: dedupeDocuments(documents), errors };
+}
 
 export async function sendGreetingSticker({ client, Api, chatUsername }) {
   const channel = await client.getEntity(chatUsername);
@@ -65,10 +124,11 @@ export async function sendGreetingSticker({ client, Api, chatUsername }) {
     }
     const recent = await client.invoke(new Api.messages.GetRecentStickers({ hash: 0 }));
     docs.push(...(recent.stickers ?? []));
-    const mask = await client.invoke(new Api.messages.GetMaskStickers({ hash: 0 }));
-    docs.push(...(mask.stickers ?? []));
+    const { documents: maskDocs } = await collectMaskStickerDocuments({ client, Api });
+    docs.push(...maskDocs);
     const faved = await client.invoke(new Api.messages.GetFavedStickers({ hash: 0 }));
     docs.push(...(faved.stickers ?? []));
+    docs = dedupeDocuments(docs);
     try {
       await fs.promises.writeFile(cacheFile, JSON.stringify(docs, null, 2), 'utf8');
       console.log(`Cached stickers data to ${cacheFile}`);
@@ -152,6 +212,7 @@ export async function sendGreetingSticker({ client, Api, chatUsername }) {
 }
 
 if (import.meta.main) {
+  const { usingTelegram } = await import('./utils.mjs');
   await usingTelegram(async ({ client, Api }) => {
     await sendGreetingSticker({ client, Api, chatUsername });
   });
